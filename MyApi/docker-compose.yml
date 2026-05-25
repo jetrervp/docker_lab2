@@ -1,0 +1,64 @@
+name: myapi_new
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: myapi_postgres
+    environment:
+      POSTGRES_DB: myapidb
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - myapi_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d myapidb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: myapi_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - myapi_network
+
+  myapi:
+    build: .
+    container_name: myapi_app
+    ports:
+      - "5000:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=myapidb;Username=myuser;Password=mypassword
+    volumes:
+      - .:/src
+    networks:
+      - myapi_network
+    command: >
+      sh -c "
+        dotnet ef database update &&
+        dotnet run --no-launch-profile
+      "
+
+networks:
+  myapi_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:
